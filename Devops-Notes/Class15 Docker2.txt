@@ -1,0 +1,271 @@
+15th Class (Dt: 11 June 2019)
+-----------------------------
+Docker container continuation...
+
+Q. What is port forwarding in Linux?
+
+We can add -p in docker run cmd and it would be port forwarding.
+Ex: docker run -p 81:80 -d httpd
+
+81:80
+-> Base OS port no: 80 
+-> Container OS port no: 81
+
+
+Before assign any port check whether it's available or not.
+Unix cmds for port no checking: netstat
+
+
+[root@ip-172-31-3-66 ~]# netstat -an |grep 22
+tcp        0      0 0.0.0.0:22                  0.0.0.0:*                   LISTEN
+
+We know SSH running on port no.22
+
+--> Search in google what are the basic port number are assigned for different applications such as SSH, tomcat, httpd, jenkins, etc.
+
+
+[root@ip-172-31-3-66 ~]# netstat -an |grep 81
+unix  2      [ ACC ]     STREAM     LISTENING     11881  /var/run/docker/metrics.sock
+
+### It means there is nothing running on port 81
+
+
+
+[root@ip-172-31-3-66 ~]# docker images
+REPOSITORY          TAG                 IMAGE ID            CREATED             SIZE
+httpd               latest              3bd2a941224f        4 days ago          140MB
+
+
+
+[root@ip-172-31-3-66 ~]# docker run --name mySecondCont -p 81:80 -d httpd
+a3e1e4ca2a20b92413db5ff84521e8cc89197edecb2d4f4a0a83f38e0e4b8d1b
+
+[root@ip-172-31-3-66 ~]# docker ps -a
+CONTAINER ID        IMAGE               COMMAND              CREATED             STATUS                    PORTS                NAMES
+a3e1e4ca2a20        httpd               "httpd-foreground"   23 seconds ago      Up 22 seconds             0.0.0.0:81->80/tcp   mySecondCont
+fc82794c6cd2        httpd               "httpd-foreground"   23 hours ago        Exited (0) 22 hours ago                        myFirstCont
+
+
+
+[root@ip-172-31-3-66 ~]# netstat -an |grep -w 81
+tcp        0      0 :::81                       :::*                        LISTEN
+
+
+[root@ip-172-31-3-66 ~]# docker ps
+CONTAINER ID        IMAGE               COMMAND              CREATED             STATUS              PORTS                NAMES
+a3e1e4ca2a20        httpd               "httpd-foreground"   6 minutes ago       Up 6 minutes        0.0.0.0:81->80/tcp   mySecondCont
+
+
+Check the http page in the browser (publicIP:81)
+
+http://13.232.56.202:81/
+It works
+
+
+
+# To enter into a container (loging into) which has started.
+
+$ docker exec -it containerName/ID
+
+[root@ip-172-31-3-66 ~]# docker exec -it mySecondCont /bin/bash
+
+root@a3e1e4ca2a20:/usr/local/apache2#
+
+# Here httpd container OS is Debian and this container OS is very light weight OS; it loaded with basic softwares which can only supports http services here. 
+
+# How to check which OS is it.
+
+root@b86e746450a6:~# cat /etc/*release
+PRETTY_NAME="Debian GNU/Linux 9 (stretch)"
+NAME="Debian GNU/Linux"
+VERSION_ID="9"
+VERSION="9 (stretch)"
+ID=debian
+HOME_URL="https://www.debian.org/"
+SUPPORT_URL="https://www.debian.org/support"
+BUG_REPORT_URL="https://bugs.debian.org/"
+
+
+# If it is Ubuntu OS
+$ lsb_release -a
+
+Scenario 1: Change the index.html file of http service
+======================================================
+# This is a debian server.
+
+root@a3e1e4ca2a20:/usr/local/apache2# cd htdocs/
+
+root@a3e1e4ca2a20:/usr/local/apache2/htdocs# ls -lrt
+-rw-r--r-- 1 root src 45 Jun 11  2007 index.html
+
+root@a3e1e4ca2a20:/usr/local/apache2/htdocs# cat index.html
+<html><body><h1>It works!</h1></body></html>
+
+
+root@a3e1e4ca2a20:/usr/local/apache2/htdocs# apt update
+
+# By default 'vi' isn't installed in Container OS, because as we said it's a light weight OS. 
+# Now we will install vim which internally vi cmd.
+
+root@a3e1e4ca2a20:/usr/local/apache2/htdocs# apt install vim -y
+
+-> Edit the index file as per our demand.
+root@a3e1e4ca2a20:/usr/local/apache2/htdocs# vi index.html
+<!DOCTYPE html>
+<html>
+  <head>
+  <title>My Page</title>
+  </head>
+  <body>
+      <h2>Devops Engineer</h2>
+      <p>Tell me about yourself</p>
+      <p>What do you know about Devops</p>
+      <p>What is the benefit of Devops</p>
+  </body>
+</html>
+#save and exit 
+
+
+
+### Check the page in browser
+http://13.232.56.202:81/
+
+
+"13.232.56.202" is the public ip of AWS Linux machine and '81' is port which is forwarded port to container os port '80'
+
+
+root@a3e1e4ca2a20:/usr/local/apache2/htdocs# exit
+
+[root@ip-172-31-3-66 ~]# docker rm -f a3e1e4ca2a20
+a3e1e4ca2a20
+
+
+Scenario 2: Now in base OS we will create "index.html" and copy it to the container image.
+===========================================================================================
+Step1: In Base Linux os, write your own index.html file under '/tmp' folder and copy it your existing container.
+------
+[root@ip-172-31-3-66 ~]# vi /tmp/index.html
+
+<!DOCTYPE html>
+<html>
+<head>
+<title>My Page</title>
+</head>
+<body>
+ <h1>This is a Heading</h1>
+ <p>This is a paragraph.</p>
+</body>
+</html>
+
+#save and exit 
+
+
+Step2:
+------
+[root@ip-172-31-3-66 ~]# docker ps -a
+CONTAINER ID        IMAGE               COMMAND              CREATED             STATUS              PORTS                NAMES
+7a1f192285df        httpd               "httpd-foreground"   7 seconds ago       Up 6 seconds        0.0.0.0:81->80/tcp   httpCont
+
+
+[root@ip-172-31-3-66 ~]# docker  cp   /tmp/index.html  httpCont:/usr/local/apache2/htdocs/ 
+
+
+Syntax:
+# docker  cp   SourceFile  ContainerName:DestinationFolder
+
+# "/usr/local/apache2/htdocs" is the lookup path where browser by default search for a html file.
+
+
+Step3: Check the http page in the browser. 
+------
+
+http://13.232.56.202:81/
+
+This is a Heading
+This is a paragraph.
+
+
+Scenario 3: Volume Mapping
+==========================
+Here we will see:- Create one central folder and keep our index.html file inside it and then map this folder to all the containers.
+
+
+[root@ip-172-31-3-66 ~]# mkdir /mydir
+[root@ip-172-31-3-66 ~]# vi index.html
+<!DOCTYPE html>
+<html>
+<head>
+<title>My Page</title>
+</head>
+<body>
+    <h2>Devops Engineer</h2>
+    <p>Tell me about yourself</p>
+    <p>What do you know about Devops</p>
+    <p>What is the benefit of Devops</p>
+</body>
+</html>
+
+
+Now create 3 containers for httpd image and give different base port number to each image.
+81:80
+82:80
+83:80
+
+
+[root@ip-172-31-3-66 mydir]# docker run -d -p 81:80 --name myhttpd1 -v /mydir/:/usr/local/apache2/htdocs/ httpd
+ab3fd48e57e40d07f83735aa002b125bd029f8991eda9554743961ef42d30f2d
+
+
+[root@ip-172-31-3-66 mydir]# docker run -d -p 82:80 --name myhttpd2 -v /mydir/:/usr/local/apache2/htdocs/ httpd
+3658ab0bb88f760126cd795278852a32ceaae778804de88b61f1a5ecfa98d1a2
+
+
+[root@ip-172-31-3-66 mydir]# docker run -d -p 83:80 --name myhttpd3 -v /mydir/:/usr/local/apache2/htdocs/ httpd
+2e3abd8c6a8d7be392e72bc264d0f4059093b5844cd14eef682c86f81cc3ca7d
+
+
+[root@ip-172-31-3-66 mydir]# docker ps -a
+CONTAINER ID        IMAGE               COMMAND              CREATED             STATUS              PORTS                NAMES
+2e3abd8c6a8d        httpd               "httpd-foreground"   37 seconds ago      Up 36 seconds       0.0.0.0:83->80/tcp   myhttpd3
+3658ab0bb88f        httpd               "httpd-foreground"   44 seconds ago      Up 43 seconds       0.0.0.0:82->80/tcp   myhttpd2
+ab3fd48e57e4        httpd               "httpd-foreground"   57 seconds ago      Up 56 seconds       0.0.0.0:81->80/tcp   myhttpd1
+
+
+So here if you modify index.html will reflect in all 3 container.
+
+Think there are 30 containers, and you want to reveal the contents in all 30 container, then this volume mapping is helpful.
+
+https://docs.docker.com/storage/volumes/
+
+
+To stop the container:
+======================
+[root@ip-172-31-3-66 ~]# docker ps
+CONTAINER ID        IMAGE                             COMMAND             CREATED             STATUS              PORTS                    NAMES
+f6be2057433d        myhttpd:1.0                       "/bin/bash"         4 hours ago         Up 4 hours          0.0.0.0:81->80/tcp       elastic_easley
+
+79229001f974        prashanth121rp/mytomcatrepo:1.0   "catalina.sh run"   5 hours ago         Up 5 hours          0.0.0.0:8081->8080/tcp   silly_curran
+
+
+[root@ip-172-31-3-66 ~]# docker container stop -t 10  f6be2057433d
+f6be2057433d
+
+
+[root@ip-172-31-3-66 ~]# docker container stop -t 10  79229001f974
+79229001f974
+
+[root@ip-172-31-3-66 ~]# docker log 
+Home exercise
+=============
+Tomcat container
+download the benefits.war and copy it to the tomcat container.
+
+First do it manually, then do it automatic
+
+docker run -d -p 8081:8080 tomcat
+
+play with docker cp
+
+download the benefits.war file into /tmp folder
+
+After that play with volume mapping
